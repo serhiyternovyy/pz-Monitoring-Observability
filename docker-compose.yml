@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+
+  # ─────────────────────────────────────────────
+  # MQTT стек
+  # ─────────────────────────────────────────────
+
+  broker:
+    image: eclipse-mosquitto:2.0
+    container_name: mqtt-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - mqtt-net
+      - zabbix-net
+
+  node1:
+    build: ./node1
+    container_name: mqtt-node1
+    restart: unless-stopped
+    depends_on:
+      - broker
+    networks:
+      - mqtt-net
+
+  node2:
+    build: ./node2
+    container_name: mqtt-node2
+    restart: unless-stopped
+    depends_on:
+      - broker
+    networks:
+      - mqtt-net
+
+  postman:
+    build: ./postman
+    container_name: mqtt-postman
+    restart: unless-stopped
+    depends_on:
+      - broker
+    networks:
+      - mqtt-net
+
+  # ─────────────────────────────────────────────
+  # Zabbix стек
+  # ─────────────────────────────────────────────
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: zabbix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_pass
+    volumes:
+      - zabbix-db:/var/lib/postgresql/data
+    networks:
+      - zabbix-net
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-latest
+    container_name: zabbix-server
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_pass
+    ports:
+      - "10051:10051"
+    depends_on:
+      - postgres
+    networks:
+      - zabbix-net
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-latest
+    container_name: zabbix-web
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_pass
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: Europe/Kyiv
+    ports:
+      - "8080:8080"
+    depends_on:
+      - zabbix-server
+    networks:
+      - zabbix-net
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:alpine-latest
+    container_name: zabbix-agent
+    restart: unless-stopped
+    privileged: true
+    group_add:
+      - "${DOCKER_GID:-982}"
+    environment:
+      - ZBX_HOSTNAME=mqtt-host
+      - ZBX_SERVER_HOST=zabbix-server
+      - ZBX_SERVER_PORT=10051
+      - ZBX_PASSIVE_ALLOW=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - zabbix-server
+      - broker
+      - node1
+      - node2
+      - postman
+    networks:
+      - zabbix-net
+      - mqtt-net
+
+# ─────────────────────────────────────────────
+# Сети
+# ─────────────────────────────────────────────
+
+networks:
+  mqtt-net:
+    driver: bridge
+  zabbix-net:
+    driver: bridge
+
+# ─────────────────────────────────────────────
+# Volumes
+# ─────────────────────────────────────────────
+
+volumes:
+  zabbix-db:

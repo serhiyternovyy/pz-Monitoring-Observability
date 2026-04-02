@@ -1,0 +1,37 @@
+# --- Docker & Databases ---
+# Игнорируем тома данных, которые создает Zabbix и MySQL/PostgreSQL
+zabbix_db_data/
+zabbix_export/
+mysql_data/
+postgres_data/
+
+# --- MQTT (Mosquitto) ---
+# Игнорируем логи и базу данных сообщений брокера
+services/mqtt/data/
+services/mqtt/log/
+mosquitto/data/
+mosquitto/log/
+
+# --- OS generated files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Environment & Secrets ---
+# Игнорируем файлы с паролями и ключами
+.env
+*.env
+secrets.txt
+
+# --- Logs ---
+*.log
+monitoring/zabbix/logs/
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
